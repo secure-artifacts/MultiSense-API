@@ -1,0 +1,45 @@
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '30 1 * * 0' # 建议每周定期扫描一次
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: macos-latest # Swift 项目必须使用 macos 的 runner
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 初始化 CodeQL，并明确指定构建模式为 manual
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: swift
+        build-mode: manual
+
+    # 你可以在这里添加解决依赖的步骤 (如果使用了 CocoaPods 或 SPM)
+    # - name: Resolve Dependencies
+    #   run: |
+    #     xcodebuild -resolvePackageDependencies -project "MultiSense API.xcodeproj"
+
+    # 手动指定构建命令，供 CodeQL 监视并抓取数据
+    - name: Build project manually
+      run: |
+        xcodebuild clean build -project "MultiSense API.xcodeproj" -scheme "MultiSense API" 
+
+    # 执行最终的分析并将结果上传至 GitHub Security Alerts
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:swift"
