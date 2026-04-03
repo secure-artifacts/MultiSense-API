@@ -1,18 +1,17 @@
-name: Build and Release macOS App
+name: CodeQL (Swift macOS)
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
+  analyze:
     runs-on: macos-latest
 
     permissions:
-      id-token: write
-      contents: write
-      attestations: write
+      security-events: write
 
     steps:
       - name: Checkout
@@ -21,42 +20,21 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      # 👇 推荐：先 clean build，避免缓存问题
-      - name: Build
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+
+      # 👇 关键：手动构建
+      - name: Build (Xcode)
         run: |
           xcodebuild \
             -scheme YourAppName \
-            -configuration Release \
+            -configuration Debug \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-      - name: Archive
-        run: |
-          xcodebuild archive \
-            -scheme YourAppName \
-            -configuration Release \
-            -archivePath build/YourApp.xcarchive \
-            CODE_SIGNING_ALLOWED=NO
-
-      - name: Export App
-        run: |
-          mkdir -p dist
-          cp -R build/YourApp.xcarchive/Products/Applications/*.app dist/
-
-      - name: Zip App
-        run: |
-          cd dist
-          APP_NAME=$(ls *.app | head -n 1)
-          zip -r "${APP_NAME%.app}.zip" "$APP_NAME"
-
-      # 👇 Attestation（基于 zip 文件）
-      - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: 'dist/*.zip'
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.zip
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
