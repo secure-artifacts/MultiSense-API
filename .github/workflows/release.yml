@@ -15,37 +15,39 @@ jobs:
       attestations: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Build App
+      - name: Build
         run: |
           xcodebuild \
             -scheme YourAppName \
             -configuration Release \
             -derivedDataPath build
 
-      - name: Archive App
+      - name: Archive
         run: |
           xcodebuild archive \
             -scheme YourAppName \
             -configuration Release \
             -archivePath build/YourApp.xcarchive
 
-      - name: Export .app
+      - name: Export App
         run: |
           mkdir -p dist
           cp -R build/YourApp.xcarchive/Products/Applications/*.app dist/
 
-      - name: Zip App
+      - name: Zip
         run: |
           cd dist
           zip -r YourApp.zip *.app
 
-      - name: Create Release
+      # 👇 就加在这里（关键位置）
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*.zip'
+
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/YourApp.zip
+          files: dist/*.zip
