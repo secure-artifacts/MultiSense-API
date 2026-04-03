@@ -1,4 +1,51 @@
-permissions:
-  id-token: write      # 用于签名证书（OIDC token）
-  contents: write      # 用于创建 Release
-  attestations: write  # 用于生成 Attestation
+name: Build and Release macOS App
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build App
+        run: |
+          xcodebuild \
+            -scheme YourAppName \
+            -configuration Release \
+            -derivedDataPath build
+
+      - name: Archive App
+        run: |
+          xcodebuild archive \
+            -scheme YourAppName \
+            -configuration Release \
+            -archivePath build/YourApp.xcarchive
+
+      - name: Export .app
+        run: |
+          mkdir -p dist
+          cp -R build/YourApp.xcarchive/Products/Applications/*.app dist/
+
+      - name: Zip App
+        run: |
+          cd dist
+          zip -r YourApp.zip *.app
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/YourApp.zip
