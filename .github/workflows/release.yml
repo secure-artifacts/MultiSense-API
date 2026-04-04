@@ -9,6 +9,7 @@ jobs:
   build:
     name: Build macOS App
     runs-on: macos-latest
+
     permissions:
       id-token: write
       contents: write
@@ -27,11 +28,16 @@ jobs:
             -archivePath "$RUNNER_TEMP/MultiSenseAPI.xcarchive" \
             CODE_SIGN_IDENTITY="-"
 
-      - name: Package App
+      - name: Build PKG
         run: |
           mkdir -p dist
-          cd "$RUNNER_TEMP/MultiSenseAPI.xcarchive/Products/Applications"
-          zip -r -y "$GITHUB_WORKSPACE/dist/MultiSense-API-macOS.zip" "MultiSense API.app"
+
+          APP_PATH="$RUNNER_TEMP/MultiSenseAPI.xcarchive/Products/Applications/MultiSense API.app"
+
+          pkgbuild \
+            --component "$APP_PATH" \
+            --install-location "/Applications" \
+            "$GITHUB_WORKSPACE/dist/MultiSense-API-macOS.pkg"
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
