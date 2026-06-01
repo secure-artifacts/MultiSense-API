@@ -4,6 +4,18 @@ import SwiftUI
 struct TranscribeApp: App {
     @StateObject private var serverManager = ServerManager()
 
+    init() {
+        // 启动最早期安装崩溃捕获，最大化日志捕获率
+        CrashReporter.shared.install()
+        // 归档上次会话的进程内崩溃记录（如有）
+        CrashReporter.shared.processPreviousCrash()
+        // 归档系统生成的 .ips 崩溃报告（含最详细调用栈）
+        CrashReporter.shared.collectSystemDiagnosticReports()
+        // 记录本次启动 + 运行环境，便于对照崩溃时间
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        AppLogger.shared.log(.info, "===== App launched | macOS \(os) =====")
+    }
+
     var body: some Scene {
         WindowGroup {
             VStack(spacing: 0) {
@@ -55,6 +67,14 @@ struct TranscribeApp: App {
                     .font(.system(size: 18))
             }
             .buttonStyle(.plain)
+
+            // 导出诊断日志（崩溃排查用）：打包日志目录到桌面并在 Finder 中选中
+            Button(action: { CrashReporter.shared.exportDiagnostics() }) {
+                Image(systemName: "ladybug")
+                    .font(.system(size: 18))
+            }
+            .buttonStyle(.plain)
+            .help("导出诊断日志到桌面（崩溃排查用）")
         }
         .padding(.horizontal, 25)
         .padding(.vertical, 20)

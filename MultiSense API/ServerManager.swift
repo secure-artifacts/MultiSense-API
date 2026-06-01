@@ -136,13 +136,16 @@ class ServerManager: ObservableObject {
         
         do {
             // 调用 SDK 下载
+            AppLogger.shared.breadcrumb("模型下载/加载 开始")
             try await service.initializeIfNeeded()
             progressTimer?.invalidate()
             self.isModelReady = true
             self.downloadProgress = 1.0
             status = String(localized: "modelLoaded")
+            AppLogger.shared.log(.info, "模型加载完成")
         } catch {
             progressTimer?.invalidate()
+            AppLogger.shared.error("模型下载/加载失败", error)
             status = String(localized: "downloadInterrupted")
             downloadProgress = 0
         }
@@ -169,7 +172,7 @@ class ServerManager: ObservableObject {
                 // GET /
                 // 检查服务与功能状态
                 app.get { req async -> ResponseStatus in
-                    
+                    AppLogger.shared.breadcrumb("GET /")
                     // 查询 ASR 是否已初始化
                     let asrLoaded = await self.service.getIsInitialized()
                     return ResponseStatus(
@@ -186,20 +189,28 @@ class ServerManager: ObservableObject {
                     struct TranscribeRequest: Content {
                         var audio: File // 音频 Blob 数据
                     }
-                    
-                    let body = try req.content.decode(TranscribeRequest.self)
-                    
-                    // 将上传的二进制流写入临时文件给底层模型读取
-                    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".tmp")
-                    try Data(body.audio.data.readableBytesView).write(to: tempURL)
-                    
-                    // 删除临时文件
-                    defer { try? FileManager.default.removeItem(at: tempURL) }
-                    
-                    // 执行语音识别
-                    let text = try await self.service.transcribe(fileURL: tempURL)
 
-                    return TranscribeResponse(text: text)
+                    do {
+                        let body = try req.content.decode(TranscribeRequest.self)
+                        let audioBytes = body.audio.data.readableBytes
+                        AppLogger.shared.breadcrumb("POST /transcribe 开始 | audio=\(audioBytes) bytes")
+
+                        // 将上传的二进制流写入临时文件给底层模型读取
+                        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".tmp")
+                        try Data(body.audio.data.readableBytesView).write(to: tempURL)
+
+                        // 删除临时文件
+                        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+                        // 执行语音识别（CoreML/ANE 推理，偶发崩溃高发区）
+                        let text = try await self.service.transcribe(fileURL: tempURL)
+                        AppLogger.shared.breadcrumb("POST /transcribe 完成 | text=\(text.count) chars")
+
+                        return TranscribeResponse(text: text)
+                    } catch {
+                        AppLogger.shared.error("POST /transcribe 失败", error)
+                        throw error
+                    }
                 }
                 
                 
@@ -212,21 +223,28 @@ class ServerManager: ObservableObject {
                         var lineBreak: Bool? // 是否保留换行
                     }
                     
-                    let body = try req.content.decode(OCRRequest.self)
-                    
-                    // 解析语言参数
-                    let langs = body.language?.components(separatedBy: ",") ?? ["zh-Hans", "en-US"]
-                    // 是否保留换行
-                    let keepLineBreaks = body.lineBreak ?? true
-                    
-                    // 执行 OCR 处理
-                    let text = try await self.ocrService.performOCR(
-                        imageData: Data(body.image.data.readableBytesView),
-                        languages: langs,
-                        keepLineBreaks: keepLineBreaks
-                    )
-                    
-                    return TranscribeResponse(text: text)
+                    do {
+                        let body = try req.content.decode(OCRRequest.self)
+
+                        // 解析语言参数
+                        let langs = body.language?.components(separatedBy: ",") ?? ["zh-Hans", "en-US"]
+                        // 是否保留换行
+                        let keepLineBreaks = body.lineBreak ?? true
+                        AppLogger.shared.breadcrumb("POST /ocr 开始 | image=\(body.image.data.readableBytes) bytes | langs=\(langs)")
+
+                        // 执行 OCR 处理
+                        let text = try await self.ocrService.performOCR(
+                            imageData: Data(body.image.data.readableBytesView),
+                            languages: langs,
+                            keepLineBreaks: keepLineBreaks
+                        )
+                        AppLogger.shared.breadcrumb("POST /ocr 完成 | text=\(text.count) chars")
+
+                        return TranscribeResponse(text: text)
+                    } catch {
+                        AppLogger.shared.error("POST /ocr 失败", error)
+                        throw error
+                    }
                 }
                 
                 // POST /classify
@@ -236,24 +254,33 @@ class ServerManager: ObservableObject {
                         var image: File // 接收名为 image 的文件对象
                     }
                     
-                    let body = try req.content.decode(ClassifyRequest.self)
-                    
-                    // 调用分类服务
-                    let results = try await self.classificationService.classifyImage(
-                        imageData: Data(body.image.data.readableBytesView)
-                    )
-                    
-                    return ClassifyResponse(labels: results)
+                    do {
+                        let body = try req.content.decode(ClassifyRequest.self)
+                        AppLogger.shared.breadcrumb("POST /classify 开始 | image=\(body.image.data.readableBytes) bytes")
+
+                        // 调用分类服务
+                        let results = try await self.classificationService.classifyImage(
+                            imageData: Data(body.image.data.readableBytesView)
+                        )
+                        AppLogger.shared.breadcrumb("POST /classify 完成 | labels=\(results.count)")
+
+                        return ClassifyResponse(labels: results)
+                    } catch {
+                        AppLogger.shared.error("POST /classify 失败", error)
+                        throw error
+                    }
                 }
                 
                 
 //                self.status = "API 运行中，端口: \(portInt)"
                 self.status = String(format: NSLocalizedString("apiRunning", comment: ""), portInt)
                 self.isRunning = true
-                
+                AppLogger.shared.log(.info, "API 服务已启动 | port=\(portInt)")
+
                 // 启动服务
                 try await app.execute()
             } catch {
+                AppLogger.shared.error("API 服务启动/运行失败 | port=\(portInt)", error)
 //                self.status = "启动失败: \(error.localizedDescription)"
                 self.status = String(format: NSLocalizedString("startFailed", comment: ""), error.localizedDescription)
                 self.isRunning = false
