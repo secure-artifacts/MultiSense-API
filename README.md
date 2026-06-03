@@ -62,6 +62,8 @@ console.log(json)
 
 Converts an audio or video stream into text.
 
+> **Concurrency:** Concurrent `/transcribe` requests are accepted and queued server-side — inference runs serially (one at a time) to keep the ASR engine stable. Under concurrent load, per-request latency may increase, but requests never fail due to overlapping inference.
+
 Supported languages: English, Spanish, French, Russian, German, Italian, Polish, Ukrainian, Romanian, Dutch, Hungarian, Greek, Swedish, Czech, Bulgarian, Portuguese, Slovak, Croatian, Danish, Finnish, Lithuanian, Slovenian, Latvian, Estonian, Maltese.
 
 #### Request Parameters (Multipart/Form-Data)
