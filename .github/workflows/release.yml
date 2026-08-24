@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  APP_NAME: "Talk Talk"
+  APP_NAME: "MultiSense API"
 
 permissions:
   contents: write
