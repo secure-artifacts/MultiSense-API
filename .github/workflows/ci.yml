@@ -15,29 +15,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Environment
+      - name: Select Xcode
         run: |
-          uname -m
-          arch
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
-          xcode-select -p
           swift --version
+          uname -m
 
-      - name: Resolve packages
+      - name: Resolve Swift Package dependencies
         run: |
           xcodebuild \
             -resolvePackageDependencies \
             -project "MultiSense API.xcodeproj"
 
-      - name: Build
+      - name: Test FluidAudio arm64 + x86_64
         run: |
-          rm -rf ~/Library/Developer/Xcode/DerivedData
+          FLUID_AUDIO=$(find ~/Library/Developer/Xcode/DerivedData \
+            -path "*/SourcePackages/checkouts/FluidAudio/Package.swift" \
+            -print -quit)
 
+          echo "FluidAudio Package.swift:"
+          echo "$FLUID_AUDIO"
+
+          if [ -z "$FLUID_AUDIO" ]; then
+            echo "❌ FluidAudio Package.swift not found"
+            exit 1
+          fi
+
+          FLUID_AUDIO_DIR=$(dirname "$FLUID_AUDIO")
+
+          echo "FluidAudio directory:"
+          echo "$FLUID_AUDIO_DIR"
+
+          cd "$FLUID_AUDIO_DIR"
+
+          echo "=== Swift Package ==="
+          swift package describe
+
+          echo "=== Build arm64 + x86_64 ==="
+          swift build \
+            --arch arm64 \
+            --arch x86_64
+
+      - name: Build Xcode project
+        run: |
           xcodebuild \
             -project "MultiSense API.xcodeproj" \
             -target "MultiSense API" \
             -configuration Debug \
-            -jobs 1 \
             CODE_SIGNING_ALLOWED=NO \
-            COMPILER_INDEX_STORE_ENABLE=NO \
             build
