@@ -57,10 +57,6 @@ jobs:
             -project "MultiSense API.xcodeproj" \
             -target "MultiSense API" \
             -jobs $(sysctl -n hw.logicalcpu) \
-            ONLY_ACTIVE_ARCH=YES \
-            ARCHS=arm64 \
-            SWIFT_COMPILATION_MODE=singlefile \
-            SWIFT_OPTIMIZATION_LEVEL=-Onone \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
