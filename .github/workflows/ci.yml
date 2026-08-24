@@ -9,16 +9,35 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build (Debug)
+      - name: Environment
         run: |
+          uname -m
+          arch
+          xcodebuild -version
+          xcode-select -p
+          swift --version
+
+      - name: Resolve packages
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project "MultiSense API.xcodeproj"
+
+      - name: Build
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+
           xcodebuild \
             -project "MultiSense API.xcodeproj" \
             -target "MultiSense API" \
             -configuration Debug \
+            -jobs 1 \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             build
