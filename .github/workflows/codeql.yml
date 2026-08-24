@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [ "main" ]        # ✅ 只在主分支 push 时触发，不是所有分支
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]        # ✅ 只分析目标 main 的 PR
+    branches: ["main"]
   schedule:
     - cron: "0 2 * * 1"
 
@@ -17,32 +17,15 @@ jobs:
     runs-on: macos-15
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
-      # ✅ 缓存 SPM 依赖，避免每次重新下载
-      - name: Cache Swift Package Manager
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.spm-cache
-            ~/Library/Caches/org.swift.swiftpm
-            .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-
-      # ✅ 缓存 DerivedData，实现增量编译
-      - name: Cache DerivedData
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-derived-${{ hashFiles('**/*.xcodeproj/project.pbxproj') }}
-          restore-keys: |
-            ${{ runner.os }}-derived-
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+          uname -m
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -50,13 +33,15 @@ jobs:
           languages: swift
           build-mode: manual
 
-      # ✅ 去掉 clean，利用增量编译；-jobs 并行加速
       - name: Build project
         run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+
           xcodebuild build \
             -project "MultiSense API.xcodeproj" \
             -target "MultiSense API" \
-            -jobs $(sysctl -n hw.logicalcpu) \
+            -configuration Debug \
+            -jobs 1 \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
